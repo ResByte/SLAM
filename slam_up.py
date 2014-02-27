@@ -45,7 +45,7 @@ def surf_img(img1):
 def create_hist(labels):
 	histogram = np.zeros(cluster_n)
 	for i in labels:
-		histogram[i-1]+=1.0
+		histogram[i]+=1.0
 	sum = reduce(lambda x,y:x+y, histogram)
     return [ x/(sum) for x in histogram]
 
@@ -54,6 +54,11 @@ def hellinger(list1,list2):
 		
 def percentageMatch(set1,set2):
 	# cardinality of a set is the measure of number of elements in the set
+	# wrong method 
+	# TODO: compute SURF correspondances between incoming image and given node
+	for i in set1:
+		max([euclidean(x,i) for x in set2])
+		
 	len_intersect =  len(np.array([x for x in set(tuple(x) for x in set2) & set(tuple(x) for x in set1)]))
 	len_img = len(set1)
 	return (float(len_intersect)*100.0)/float(len_img)
@@ -66,6 +71,7 @@ def detectLoopClosure(hist1,desc1):
 	#to find a loop closure candidate : Global histogram Match
 	distance={}
 	percentMatch={}
+	# This is a linear search, better to implement a BST or K-d tree.
 	if len(map)>1:
 		for i in map:
 			hist2=i.hist
@@ -111,28 +117,28 @@ if __name__ == "__main__":
 				if a[0]=="#":
 					pass
 				else:
-					if i !=1:
+					
 						
-						# Sample with uniform sampling of every 5th frame in the list
-						if k == 20:
-							image = cv2.imread(a[1])
-							imgray = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
-							desc,cent,labls,keyp = surf_img(imgray)
-							histo = create_hist(labls)
-							# detect for loop closures 
-							if detectLoopClusure(hist,desc) != None:
-								#TODO: update_node()
+					# Sample with uniform sampling of every 20th frame in the list
+					if k == 20:
+						image = cv2.imread(a[1])
+						imgray = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
+						desc,cent,labls,keyp = surf_img(imgray)
+						histo = create_hist(labls)
+						# detect for loop closures 
+						if detectLoopClusure(histo,desc) != None:
+							#TODO: update_node()
 							
-							else:
-								#create a new node
-								
-								new_node =Node(histo,desc,number)
-								map.append(new_node)
-								number+=1
-								# TODO: update_map()
-							k=1
 						else:
-							k+=1
+							#create a new node
+							
+							new_node =Node(histo,desc,number)
+							map.append(new_node)
+							number+=1
+							# TODO: update_map()
+						k=1
+					else:
+						k+=1
 
 
 
