@@ -52,19 +52,40 @@ def create_hist(labels):
 def hellinger(list1,list2):
     return euclidean(np.sqrt(list1), np.sqrt(list2))/np.sqrt(2) 
 		
+def percentageMatch(set1,set2):
+	# cardinality of a set is the measure of number of elements in the set
+	len_intersect =  len(np.array([x for x in set(tuple(x) for x in set2) & set(tuple(x) for x in set1)]))
+	len_img = len(set1)
+	return (float(len_intersect)*100.0)/float(len_img)
+	
+	
+
 
 def detectLoopClosure(hist1,desc1):
 	#selectBest(findLoopCandidates(img))
 	#to find a loop closure candidate : Global histogram Match
 	distance={}
+	percentMatch={}
 	if len(map)>1:
 		for i in map:
 			hist2=i.hist
 			number=i.number
 			distance[number] = hellinger(hist1,hist2)
-	sort= sorted(distance.items(), key=lambda x: x[1],reverse=False)
-	topR = itertools.islice(sort.iteritems(), R)
-	#TODO: direct feature Matching 	
+		sort= sorted(distance.items(), key=lambda x: x[1],reverse=False)
+		topR = itertools.islice(sort.iteritems(), R)
+		
+		#direct feature Matching 	
+		for i in list(topR):
+			for element in map:
+				if i[0]==element.number:
+					desc2=element.pool
+					percentMatch[number]=percentageMatch(desc1,desc2)
+	
+		sort_percent= sorted(percentMatch.items(), key=lambda x:x[1],reverse=True)
+		key,value = sort_percent.popitem()
+		if value >= threshold:
+			return key
+		
 			
 
 def createNode(img):
@@ -99,7 +120,7 @@ if __name__ == "__main__":
 							desc,cent,labls,keyp = surf_img(imgray)
 							histo = create_hist(labls)
 							# detect for loop closures 
-							if detectLoopClusure(hist,desc):
+							if detectLoopClusure(hist,desc) != None:
 								#TODO: update_node()
 							
 							else:
