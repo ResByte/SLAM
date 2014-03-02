@@ -20,125 +20,252 @@ import operator
 start = timeit.default_timer()
 
 
+ 
+
 class Node: 
-  def __init__(self, hist=None, desc=None,number =None, next=None): 
+  def __init__(self, hist=None, desc=None,number =None): 
     self.hist = hist
     self.pool =[desc] 
     self.number =number
-    self.next  = next 
 
   def __str__(self): 
-    return str(self.cargo,self.pool) 
+    return str(self.hist,self.pool,self.number) 
 
 def surf_img(img1):
+	print "-> calculating SURF"
 	#Calculate surf desciptors, and apply Kmeans algo to create clusters
 	surf = cv2.SURF()
 	surf.extended = True
 	#kp = surf.detect(img1)
-	kp,descript = surf.compute(img1)
-	descriptors = np.asarray(des)		
+	kp,descript = surf.detectAndCompute(img1,None)
+	descriptors = np.asarray(descript)		
 	centroid,label = kmeans2(descriptors,cluster_n,iter=10,thresh=1e-05, minit='random', missing='warn')
 	return descript,centroid,label,kp
 
 
 
 def create_hist(labels):
+	print "-> calculating histogram"
 	histogram = np.zeros(cluster_n)
 	for i in labels:
 		histogram[i]+=1.0
-	sum = reduce(lambda x,y:x+y, histogram)
-    return [ x/(sum) for x in histogram]
+	sum2 = reduce(lambda x,y:x+y, histogram)
+	for i in histogram:
+		i = i/sum2
+	return histogram
 
 def hellinger(list1,list2):
-    return euclidean(np.sqrt(list1), np.sqrt(list2))/np.sqrt(2) 
+	print "-> hellinger"
+	return euclidean(np.sqrt(list1), np.sqrt(list2))/np.sqrt(2) 
 		
 def percentageMatch(set1,set2):
+	print "->percentage match"
 	# cardinality of a set is the measure of number of elements in the set
 	# wrong method 
 	# TODO: compute SURF correspondances between incoming image and given node
-	for i in set1:
-		max([euclidean(x,i) for x in set2])
-		
-	len_intersect =  len(np.array([x for x in set(tuple(x) for x in set2) & set(tuple(x) for x in set1)]))
+	bf = cv2.BFMatcher()
+	matches = bf.knnMatch(set1,set2, l=2)
 	len_img = len(set1)
+	# Sort them in the order of their distance.
+	#matches = sorted(matches, key = lambda x:x.distance)
+	good = []
+	for m,n in matches:
+		if m.distance < 0.75*n.distance:
+			good.append([m])	
+	#len_intersect =  len(np.array([x for x in set(tuple(x) for x in set2) & set(tuple(x) for x in set1)]))
+	len_intersect= len(good)
+	len_img = len(set1)
+	print "-> return from percent match"
+	print matches
 	return (float(len_intersect)*100.0)/float(len_img)
 	
 	
 
 
 def detectLoopClosure(hist1,desc1):
+	print "-> detect loop closure"
 	#selectBest(findLoopCandidates(img))
 	#to find a loop closure candidate : Global histogram Match
 	distance={}
 	percentMatch={}
 	# This is a linear search, better to implement a BST or K-d tree.
-	if len(map)>1:
-		for i in map:
+	
+	for i in map:
 			hist2=i.hist
 			number=i.number
 			distance[number] = hellinger(hist1,hist2)
-		sort= sorted(distance.items(), key=lambda x: x[1],reverse=False)
-		topR = itertools.islice(sort.iteritems(), R)
+	sort= sorted(distance.items(), key=lambda x: x[1],reverse=False)
+	topR = itertools.islice(sort, R)
 		
 		#direct feature Matching 	
-		for i in list(topR):
-			for element in map:
-				if i[0]==element.number:
-					desc2=element.pool
-					percentMatch[number]=percentageMatch(desc1,desc2)
-	
-		sort_percent= sorted(percentMatch.items(), key=lambda x:x[1],reverse=True)
-		key,value = sort_percent.popitem()
-		if value >= threshold:
-			return key
+	for i in list(topR):
+		for element in map:
+			if i[0]==element.number:
+				print "-> In percentMatch"
+				desc2=element.pool[0]
+				print desc2.shape
+				print desc1.shape
+				bf = cv2.BFMatcher(cv2.NORM_L1, crossCheck=True)
+
+				# Match descriptors.
+				matches = bf.match(desc1,desc2)
+				len_intersect= len(matches)
+				len_img = len(desc1)
+				print "-> return from percent match"
+				#print matches
+				#return (float(len_intersect)*100.0)/float(len_img)
+				percentMatch[number]=(float(len_intersect)*100.0)/float(len_img)
+	print "-> second step of loop closure"
+	print percentMatch
+	sort_percent= sorted(percentMatch.items(), key=lambda x:x[1],reverse=True)
+	print sort_percent
+	value = sort_percent[0]
+	print value[1]
+	if value[1] >= threshold:
+		print "loop closure detected"
+		return value[0]
 		
 			
 
 def createNode(img):
-	desc,cent,lab,keyp = surf_img(img)
+	"""desc,cent,lab,keyp = surf_img(img)
 	# for these cluster centers create an histogram 
 	#by counting number of descriptors in each bin(cluster center) returned from kmeans
 	histo = create_hist(cent,lab)
-	return node(histo,desc)
+	return node(histo,desc)"""
+	#adjacencyMatrix][]
 	
+
+def updateNodeProbabilities(node_num):
+	print "update Node Probabilities"
+	sum_prior_nodes = sum(node_prior)
+	for i in range(MAX_NODES):
+		if i==node_num:
+			node_probability_vector[node_num]=(node_prior[node_num] +1.0)/(sum_prior_nodes +1.0)
+		else:
+			node_probability_vector[i]=node_prior[i]/(sum_prior_nodes +1.0)
+	for i in range(MAX_NODES):
+		if i == node_num:
+			node_prior[node_num]+=1.0
+	if node_num != dst_node_num:
+		#print hyperparametes_rv_prior[node_num]
+		parent_X_sum = sum(hyperparametes_rv_prior[node_num])
+		
+		for i in range(MAX_NODES):
+			if i == dst_node_num:
+				transition_probability_nodes[dst_node_num][node_num]=(hyperparametes_rv_prior[dst_node_num][node_num]+1.0)/(parent_X_sum +1.0)
+			else:
+				transition_probability_nodes[i][node_num]=(hyperparametes_rv_prior[i][node_num]+1.0)/(parent_X_sum +1.0)
+		
+		for i in range(MAX_NODES):
+			if i==dst_node_num:
+				hyperparametes_rv_prior[dst_node_num][node_num]=(hyperparametes_rv_prior[dst_node_num][node_num]+1.0)
+			
+	
+def update_node(node_id,histo,desc):
+	print "-> update node"
+	for i in map:
+		if i.number==node_id:
+			i.pool.append(desc)
+			
+		
 	
 
 if __name__ == "__main__":
 	#initialize variables
+	np.set_printoptions(threshold=np.nan)
+	print "->Initializing Variables"
+	first = True
+	MAX_NODES=60
 	R=5 #Number of nodes to undergo second stage of varification after global histogram matching
-	k=1
+	kint=1
 	cluster_n =10
 	number=0
+	loopClosureCount=0
+	eachVistedNode=np.zeros(MAX_NODES)
+	visitedNode=np.zeros(MAX_NODES)
+	node_num=0
+	dst_node_num=0
+	lastNode =0
+	threshold =60.0 
+	adjacencyMatrix=np.zeros([MAX_NODES,MAX_NODES])
+	transition_probability_nodes=np.zeros((MAX_NODES,MAX_NODES))
+	init_node_probabilities=1.0/MAX_NODES
+	node_probability_vector=[1.0/MAX_NODES for x in range(MAX_NODES)]
+	node_prior = [1.0/MAX_NODES for x in range(MAX_NODES)]
+
+	""" 
+    // We are assuming the Drichlet prior for n Random variables (X1,X2,......Xn)
+    // X1~Drichlet(Alpha1,Alpha2.......) X2~Drichlet(Alpha..)
+
+
+    // Posterior distribution X1~Drichlet(Alpha1+N1,Alpha2+N2......) and so on.......
+
+    // parameter estimation i.e. updating transition probabilities given its parents
+    // theta(i/j) = alpha(i/j)+N(i,j) / aplha + N; """
+
+	X_Rv=[1.0/MAX_NODES for x in range(MAX_NODES)]
+	hyperparametes_rv_prior =[X_Rv for x in range(MAX_NODES)]
+		
 	map=[]
-	for i in range(2):
-		with open(sys.argv[1],"r") as rgb_file:
-			for line in rgb_file:
-				a=line.strip().split()
-				if a[0]=="#":
-					pass
-				else:
-					
-						
-					# Sample with uniform sampling of every 20th frame in the list
-					if k == 20:
+	imgCount= 0
+
+	
+	with open(sys.argv[1],"r") as rgb_file:
+		print "->reading files"
+		for line in rgb_file:
+			a=line.strip().split()
+			if a[0]=="#":
+				pass
+			else:					
+			# Sample with uniform sampling of every 20th frame in the list
+				if kint == 20:
+					print "->reading images" 
+					if first:
+						print "->reading first image"
 						image = cv2.imread(a[1])
 						imgray = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
-						desc,cent,labls,keyp = surf_img(imgray)
+						imgCount+=1
+						dptr,cent,labls,keyp = surf_img(imgray)
 						histo = create_hist(labls)
+							#adjacencyMatrix[0][0]=1.0
+						eachVistedNode[0]=1
+						visitedNode[0]=1
+						prior=[1.0]
+						map.append(Node(histo,dptr,0))
+						first = False
+					else:	
+						image = cv2.imread(a[1])
+						imgray = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
+						imgCount+=1
+						dptr,cent,labls,keyp = surf_img(imgray)
+						histo = create_hist(labls)
+						
+						node_key=detectLoopClosure(histo,dptr)
 						# detect for loop closures 
-						if detectLoopClusure(histo,desc) != None:
+						if node_key != None:
+							print "->detecting if loop closure"
 							#TODO: update_node()
-							
+							updateNodeProbabilities(node_key)
+							loopClosureCount+=1
+							update_node(node_key,histo,dptr)
 						else:
 							#create a new node
-							
-							new_node =Node(histo,desc,number)
-							map.append(new_node)
+							print "->creating a new node"
 							number+=1
+							new_node =Node(histo,dptr,number)
+							map.append(new_node)
+							updateNodeProbabilities(new_node.number)
+							
 							# TODO: update_map()
-						k=1
-					else:
-						k+=1
+					kint=1
+				else:
+					kint+=1
+	print "-> transition probabilities"
+	print transition_probability_nodes
+	print "-> node probability vector"
+	print node_probability_vector
+	
 
 
 
