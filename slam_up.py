@@ -76,7 +76,7 @@ def percentageMatch(set1,set2):
 	len_intersect= len(good)
 	len_img = len(set1)
 	print "-> return from percent match"
-	print matches
+	#print matches
 	return (float(len_intersect)*100.0)/float(len_img)
 	
 	
@@ -103,8 +103,8 @@ def detectLoopClosure(hist1,desc1):
 			if i[0]==element.number:
 				print "-> In percentMatch"
 				desc2=element.pool[0]
-				print desc2.shape
-				print desc1.shape
+	#			print desc2.shape
+	#			print desc1.shape
 				bf = cv2.BFMatcher(cv2.NORM_L1, crossCheck=True)
 
 				# Match descriptors.
@@ -116,11 +116,11 @@ def detectLoopClosure(hist1,desc1):
 				#return (float(len_intersect)*100.0)/float(len_img)
 				percentMatch[number]=(float(len_intersect)*100.0)/float(len_img)
 	print "-> second step of loop closure"
-	print percentMatch
+	#print percentMatch
 	sort_percent= sorted(percentMatch.items(), key=lambda x:x[1],reverse=True)
-	print sort_percent
+	#print sort_percent
 	value = sort_percent[0]
-	print value[1]
+	#print value[1]
 	if value[1] >= threshold:
 		print "loop closure detected"
 		return value[0]
@@ -136,30 +136,50 @@ def createNode(img):
 	#adjacencyMatrix][]
 	
 
-def updateNodeProbabilities(node_num):
+
+def updateNodeProbabilities(node_num,prev):
 	print "update Node Probabilities"
 	sum_prior_nodes = sum(node_prior)
-	for i in range(MAX_NODES):
-		if i==node_num:
-			node_probability_vector[node_num]=(node_prior[node_num] +1.0)/(sum_prior_nodes +1.0)
-		else:
-			node_probability_vector[i]=node_prior[i]/(sum_prior_nodes +1.0)
-	for i in range(MAX_NODES):
+	# update P(theta)
+	for  i in range(MAX_NODES):
 		if i == node_num:
+			node_probability_vector[node_num]=(node_prior[node_num]+1.0)/(sum_prior_nodes + 1.0)
+		else:
+			node_probability_vector[i]=node_prior[i]/(sum_prior_nodes + 1.0)
+	
+	# This detects how many times a node is found to be loop closure
+	for i in range(MAX_NODES):
+		if i ==node_num:
 			node_prior[node_num]+=1.0
-	if node_num != dst_node_num:
-		#print hyperparametes_rv_prior[node_num]
-		parent_X_sum = sum(hyperparametes_rv_prior[node_num])
-		
+	
+	Dt = sum(node_prior)
+	if node_num != prev:
+		sum_hyper= sum(hyperparameters_rv_prior[node_num])
 		for i in range(MAX_NODES):
-			if i == dst_node_num:
-				transition_probability_nodes[dst_node_num][node_num]=(hyperparametes_rv_prior[dst_node_num][node_num]+1.0)/(parent_X_sum +1.0)
+			if i == prev:
+				transition_probability_nodes[prev][node_num]=(hyperparameters_rv_prior[prev][node_num]+1.0)/(sum_hyper+1.0)
 			else:
-				transition_probability_nodes[i][node_num]=(hyperparametes_rv_prior[i][node_num]+1.0)/(parent_X_sum +1.0)
-		
+				transition_probability_nodes[i][node_num]=(hyperparameters_rv_prior[i][node_num])/(sum_hyper+1.0)
 		for i in range(MAX_NODES):
-			if i==dst_node_num:
-				hyperparametes_rv_prior[dst_node_num][node_num]=(hyperparametes_rv_prior[dst_node_num][node_num]+1.0)
+			if i == prev:
+				hyperparameters_rv_prior[prev][node_num]=hyperparameters_rv_prior[prev][node_num]+1.0
+	
+	
+	
+			
+	#if node_num != dst_node_num:
+		##print hyperparametes_rv_prior[node_num]
+		#parent_X_sum = sum(hyperparametes_rv_prior[node_num])
+		
+		#for i in range(MAX_NODES):
+			#if i == dst_node_num:
+				#transition_probability_nodes[dst_node_num][node_num]=(hyperparametes_rv_prior[dst_node_num][node_num]+1.0)/(parent_X_sum +1.0)
+			#else:
+				#transition_probability_nodes[i][node_num]=(hyperparametes_rv_prior[i][node_num]+1.0)/(parent_X_sum +1.0)
+		
+		#for i in range(MAX_NODES):
+			#if i==dst_node_num:
+				#hyperparametes_rv_prior[dst_node_num][node_num]=(hyperparametes_rv_prior[dst_node_num][node_num]+1.0)
 			
 	
 def update_node(node_id,histo,desc):
@@ -167,7 +187,10 @@ def update_node(node_id,histo,desc):
 	for i in map:
 		if i.number==node_id:
 			i.pool.append(desc)
-			
+
+def updateTransition(new,last):
+	if new!=last:
+			adjacencyMatrix[new][last]=1.0			
 		
 	
 
@@ -176,7 +199,7 @@ if __name__ == "__main__":
 	np.set_printoptions(threshold=np.nan)
 	print "->Initializing Variables"
 	first = True
-	MAX_NODES=60
+	MAX_NODES=160
 	R=5 #Number of nodes to undergo second stage of varification after global histogram matching
 	kint=1
 	cluster_n =10
@@ -187,12 +210,13 @@ if __name__ == "__main__":
 	node_num=0
 	dst_node_num=0
 	lastNode =0
-	threshold =60.0 
+	threshold =50.0 
 	adjacencyMatrix=np.zeros([MAX_NODES,MAX_NODES])
-	transition_probability_nodes=np.zeros((MAX_NODES,MAX_NODES))
+	transition_probability_nodes=np.zeros((MAX_NODES,MAX_NODES)) # adjacency matrix
 	init_node_probabilities=1.0/MAX_NODES
-	node_probability_vector=[1.0/MAX_NODES for x in range(MAX_NODES)]
-	node_prior = [1.0/MAX_NODES for x in range(MAX_NODES)]
+	node_probability_vector=[1.0/MAX_NODES for x in range(MAX_NODES)]  # theta from the paper
+	
+	node_prior = [0. for x in range(MAX_NODES)] # each element is Di and sum is Dt
 
 	""" 
     // We are assuming the Drichlet prior for n Random variables (X1,X2,......Xn)
@@ -205,10 +229,11 @@ if __name__ == "__main__":
     // theta(i/j) = alpha(i/j)+N(i,j) / aplha + N; """
 
 	X_Rv=[1.0/MAX_NODES for x in range(MAX_NODES)]
-	hyperparametes_rv_prior =[X_Rv for x in range(MAX_NODES)]
+	hyperparameters_rv_prior =[X_Rv for x in range(MAX_NODES)]
 		
 	map=[]
 	imgCount= 0
+	prevNode=0
 
 	
 	with open(sys.argv[1],"r") as rgb_file:
@@ -219,7 +244,7 @@ if __name__ == "__main__":
 				pass
 			else:					
 			# Sample with uniform sampling of every 20th frame in the list
-				if kint == 20:
+				if kint == 10:
 					print "->reading images" 
 					if first:
 						print "->reading first image"
@@ -233,6 +258,7 @@ if __name__ == "__main__":
 						visitedNode[0]=1
 						prior=[1.0]
 						map.append(Node(histo,dptr,0))
+						
 						first = False
 					else:	
 						image = cv2.imread(a[1])
@@ -244,27 +270,29 @@ if __name__ == "__main__":
 						node_key=detectLoopClosure(histo,dptr)
 						# detect for loop closures 
 						if node_key != None:
-							print "->detecting if loop closure"
+							print "->detected loop closure"
 							#TODO: update_node()
-							updateNodeProbabilities(node_key)
+							updateNodeProbabilities(node_key,prevNode)
 							loopClosureCount+=1
 							update_node(node_key,histo,dptr)
+							prevNode=node_key
 						else:
 							#create a new node
 							print "->creating a new node"
 							number+=1
 							new_node =Node(histo,dptr,number)
 							map.append(new_node)
-							updateNodeProbabilities(new_node.number)
-							
+							updateTransition(new_node.number,prevNode)
+							#updateNodeProbabilities(new_node.number,prevNode)
+							prevNode = new_node.number
 							# TODO: update_map()
 					kint=1
 				else:
 					kint+=1
 	print "-> transition probabilities"
 	print transition_probability_nodes
-	print "-> node probability vector"
-	print node_probability_vector
+	print "-> ajacency matrix"
+	print adjacencyMatrix
 	
 
 
